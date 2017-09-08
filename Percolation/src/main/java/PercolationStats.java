@@ -5,12 +5,13 @@ import edu.princeton.cs.algs4.StdStats;
 public class PercolationStats {
 
   private static final double PERCENT95 = 1.96;
-  private final int[] fractions;
+  private final double[] fractions;
   private final int size;
   private double threshold;
   private double deviation;
   private double confidenceLo;
   private double confidenceHi;
+  private double halfConfidence;
 
   public PercolationStats(int n, int trials) {
     if (n <= 0) {
@@ -20,14 +21,15 @@ public class PercolationStats {
       throw new IllegalArgumentException(String.format("Trials size is wrong %d", n));
     }
     size = trials;
-    fractions = new int[trials];
+    fractions = new double[trials];
+    int n2 = n * n;
     Percolation percolation;
     for (int i = 0; i < trials; i++) {
       percolation = new Percolation(n);
       while (!percolation.percolates()) {
         randomOpen(n, percolation);
       }
-      fractions[i] = percolation.numberOfOpenSites();
+      fractions[i] = (double) percolation.numberOfOpenSites() / n2;
     }
   }
 
@@ -38,7 +40,7 @@ public class PercolationStats {
   private int randomize(int n) {
     int rnd = -1;
     while (rnd < 1 || rnd > n) {
-      rnd = StdRandom.uniform(1, n+1);
+      rnd = StdRandom.uniform(1, n + 1);
     }
     return rnd;
   }
@@ -75,7 +77,13 @@ public class PercolationStats {
   }
 
   private double halfConfidence() {
-    return PERCENT95 * deviation / Math.sqrt(size);
+    if (halfConfidence == 0) {
+      if (deviation == 0) {
+        stddev();
+      }
+      halfConfidence = PERCENT95 * deviation / Math.sqrt(size);
+    }
+    return halfConfidence;
   }
 
   public static void main(String[] args) {
