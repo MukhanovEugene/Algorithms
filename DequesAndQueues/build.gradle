@@ -1,3 +1,4 @@
+group 'org.eim.algorithms'
 version '1.0-SNAPSHOT'
 
 apply plugin: 'java'
@@ -6,19 +7,6 @@ sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
-}
-
-clean {
-    delete = []
-    delete 'build', 'out'
-}
-
-sourceSets {
-    main {
-        java {
-            srcDirs = ["src/main/java","src/main/collinear"]
-        }
-    }
 }
 
 dependencies {

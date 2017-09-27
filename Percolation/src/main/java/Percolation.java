@@ -1,5 +1,3 @@
-import java.util.BitSet;
-
 import edu.princeton.cs.algs4.WeightedQuickUnionUF;
 
 public class Percolation {
@@ -8,8 +6,7 @@ public class Percolation {
   private int openSites = 0;
   private final int size; // 0 - will be root, It's the abstract cell.
   private final WeightedQuickUnionUF quickUnionUF;
-  private final BitSet open;
-  private final BitSet filled;
+  private final byte[] data;
   private boolean percolated;
 
   public Percolation(int n) {
@@ -19,10 +16,8 @@ public class Percolation {
     count = n;
     size = n * n + 1;
     quickUnionUF = new WeightedQuickUnionUF(size + 1); // 0 - top root and count + 2 - bottom roor
-    open = new BitSet(size + 1);
-    filled = new BitSet(size + 1);
-    open.set(0,true);
-    filled.set(0,true);
+    data = new byte[size + 1];
+    data[0] = 2; // top root should be open and filled
   }
 
   private int index(int row, int col) {
@@ -31,24 +26,14 @@ public class Percolation {
     return (row - 1) * count + col;
   }
 
-  private int[] rowCol(int idx) {
-    int col = idx % count;
-    int row = idx / count;
-    if (col == 0) {
-      --row;
-      col = count;
-    }
-    return new int[]{++row, col};
-  }
-
   private void checkRow(int row) {
-    if (row == 0 || row > count) {
+    if (row <= 0 || row > count) {
       throw new IllegalArgumentException(String.format("Row index is out of range %d.", --row));
     }
   }
 
   private void checkCol(int col) {
-    if (col == 0 || col > count) {
+    if (col <= 0 || col > count) {
       throw new IllegalArgumentException(String.format("Column index is out of range %d.", --col));
     }
   }
@@ -57,132 +42,114 @@ public class Percolation {
     checkRow(row);
     checkCol(col);
     int idx = index(row, col);
-    if (open.get(idx)) return;
-    open.set(idx,true);
+    if (data[idx] > 0) return;
+    data[idx] = 1;
     ++openSites;
-    if (row - 1 == 0 && !filled.get(idx)) {
+    if (row - 1 == 0 && data[idx] < 2) {
       quickUnionUF.union(0, idx); // union with top root
-      filled.set(idx,true);
-      if (row == count) { // only for case with one row!!!
+      data[idx] = 2;
+      if (row == count) {
         unionToBottomRoot(idx);
       }
     }
-    tryToUnion(row, col);
-    tryToFillInCircle(row, col);
-  }
-
-  private void tryToFillInCircle(int row, int col) {
-    int[] rc;
-    int idx = index(row, col);
-    for (int i = 1; i < idx + count + 1 && i <= size; i++) {
-      if (filled.get(i)) {
-        idx = i;
-      } else if (open.get(i)) {
-        rc = rowCol(i);
-        if (tryToFill(rc[0], rc[1])) {
-          idx = i;
-          i = 1;
+    tryToUnion(idx);
+    if (tryToFillInCircle(idx)) {
+      data[idx] = 2;
+      int i = idx - count - 1;
+      if (i < 1) {
+        i = 1;
+      }
+      int reset = i;
+      for (; i <= size; i++) {
+        if (data[i] == 3) {
+          if (tryToFillInCircle(i)) {
+            data[i] = 2;
+            i = i - count - 1;
+            if (i < 1) {
+              i = 1;
+            }
+            reset = i;
+          } else {
+            data[i] = 2;
+          }
+        }
+        if (i - reset > count * 2 + 1) {
+          break;
         }
       }
     }
   }
 
-  private void tryToUnion(int row, int col) {
-    try {
-      union(row, col, row - 1, col);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
+  private boolean tryToFillInCircle(int idx) {
+    boolean changed = false;
+    int retVal = fillBoth(idx, getRight(idx));
+    if (retVal > -1) {
+//      data[retVal] = 3;
+      changed = true;
     }
-    try {
-      union(row, col, row, col + 1);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
+    retVal = fillBoth(idx, getLeft(idx));
+    if (retVal > -1) {
+//      data[retVal] = 3;
+      changed = true;
     }
-    try {
-      union(row, col, row + 1, col);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
+    retVal = fillBoth(idx, getTop(idx));
+    if (retVal > -1) {
+//      data[retVal] = 3;
+      changed = true;
     }
-    try {
-      union(row, col, row, col - 1);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
+    retVal = fillBoth(idx, getBottom(idx));
+    if (retVal > -1) {
+//      data[retVal] = 3;
+      changed = true;
     }
+    return changed;
+  }
+
+  private void tryToUnion(int idx) {
+    union(idx, getRight(idx));
+    union(idx, getLeft(idx));
+    union(idx, getTop(idx));
+    union(idx, getBottom(idx));
   }
 
   private void unionToBottomRoot(int idx) {
     quickUnionUF.union(size, idx); // union with top root
   }
 
-  private void union(int row, int col, int row2, int col2) {
-    int idx = index(row, col);
-    int idx2 = index(row2, col2);
-    if (open.get(idx) && open.get(idx2) && (!filled.get(idx) || !filled.get(idx2))) {
+  private void union(int idx, int idx2) {
+    if (idx != idx2 && data[idx] > 0 && data[idx2] > 0) {
       quickUnionUF.union(idx, idx2);
-      fillBoth(idx, idx2, row, row2);
     }
   }
 
-  private boolean tryToFill(int row, int col) {
-    boolean retVal = false, retVal2 = false, retVal3 = false, retVal4 = false;
-    try {
-      retVal = fill(row, col, row - 1, col);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
-    }
-    try {
-      retVal2 = fill(row, col, row, col + 1);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
-    }
-    try {
-      retVal3 = fill(row, col, row + 1, col);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
-    }
-    try {
-      retVal4 = fill(row, col, row, col - 1);
-    } catch (IllegalArgumentException ex) {
-      /* dont' throw up */
-    }
-    return retVal || retVal2 || retVal3 || retVal4;
-  }
-
-  private boolean fill(int row, int col, int row2, int col2) {
-    int idx = index(row, col);
-    int idx2 = index(row2, col2);
-    return fillBoth(idx, idx2, row, row2);
-  }
-
-  private boolean fillBoth(int idx, int idx2, int row, int row2) {
-    if (open.get(idx) && open.get(idx2)) {
-      if (filled.get(idx) && !filled.get(idx2)) {
-        filled.set(idx2, true);
-        if (row2 == count) {
-          unionToBottomRoot(idx2);
-        }
-        return true;
-      } else if (!filled.get(idx) && filled.get(idx2)) {
-        filled.set(idx, true);
-        if (row == count) {
-          unionToBottomRoot(idx);
-        }
-        return true;
+  private int fillBoth(int idx, int idx2) {
+    if (idx == idx2) return -1;
+    if (data[idx] > 1 && data[idx2] == 1) {
+      data[idx2] = 3;
+      if (idx2 > size - count - 1) {
+        unionToBottomRoot(idx2);
       }
+      return idx2;
+    } else if (data[idx] == 1 && data[idx2] > 1) {
+      data[idx] = 3;
+      if (idx > size - count - 1) {
+        unionToBottomRoot(idx);
+      }
+      return idx;
     }
-    return false;
+    return -1;
   }
 
   public boolean isOpen(int row, int col) {
     checkRow(row);
     checkCol(col);
-    return open.get(index(row, col));
+    return data[index(row, col)] > 0;
   }
 
   public boolean isFull(int row, int col) {
     checkRow(row);
     checkCol(col);
-    return filled.get(index(row, col));
+    return data[index(row, col)] > 1;
   }
 
   public int numberOfOpenSites() {
@@ -194,6 +161,36 @@ public class Percolation {
       percolated = quickUnionUF.connected(0, size);
     }
     return percolated;
+  }
+
+  // ---------------------
+  private int getRight(int idx) {
+    if (idx % count == 0) {
+      return idx;
+    }
+    return ++idx;
+  }
+
+  private int getBottom(int idx) {
+    int tmp = idx / count;
+    if (tmp == count || (tmp == count - 1 && idx % count > 0)) {
+      return idx;
+    }
+    return idx + count;
+  }
+
+  private int getLeft(int idx) {
+    if (idx % count == 1) {
+      return idx;
+    }
+    return --idx;
+  }
+
+  private int getTop(int idx) {
+    if (idx / count == 0) {
+      return idx;
+    }
+    return idx - count;
   }
 
 }
