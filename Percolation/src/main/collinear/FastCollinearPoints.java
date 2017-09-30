@@ -9,15 +9,17 @@ public class FastCollinearPoints {
   private LineSegment[] segments;
   private int lineCount = 0;
   private int[] oritinalPointIndex;
-//  private Point[] currentSet = null;
-//  private Point[] previousSet = null;
+  private Point[] currentSet = null;
+  private double[] slopeSet = null;
+  private int setCount = 0;
+  //  private Point[] previousSet = null;
 //  private int currentSize = 0;
 //  private int previousSize = 0;
 //  private int existsCount;
   private Point temp;
 
   private void check(Point[] points) {
-    for (Point p: points) {
+    for (Point p : points) {
       if (p == null) throw new IllegalArgumentException();
     }
   }
@@ -27,11 +29,13 @@ public class FastCollinearPoints {
       throw new IllegalArgumentException();
     }
     check(points);
+    currentSet = new Point[points.length * 2];
+    slopeSet = new double[currentSet.length];
     segments = new LineSegment[points.length * points.length - 1];
-//    previousSet = new Point[points.length];
     double[] slopes;
     int[] originalPointIndex;
     Point pointi, pointj;
+    int p;
     for (int i = 0; i < (points.length - 1); i++) {
 //      StdOut.println("-------------------- i = " + i + " ----------------------");
       pointi = points[i];
@@ -51,11 +55,11 @@ public class FastCollinearPoints {
       }
 
       sort(slopes, originalPointIndex);
-      int p = 1;
       Point first_p = null;
       Point last_p = null;
       for (int k = 0; k < slopes.length - 2; k++) {
         if (originalPointIndex[k] == i) continue;
+//        StdOut.println("K: "+k+" original index: "+originalPointIndex[k] + " Point: "+points[originalPointIndex[k]]);
         p = k + 1;
         while (p < slopes.length && (slopes[k] == slopes[p] ||
           slopes[k] == Double.NEGATIVE_INFINITY && slopes[p] == Double.NEGATIVE_INFINITY ||
@@ -79,13 +83,7 @@ public class FastCollinearPoints {
           Point[] firstLast;
           for (int t = k; t < p; t++) {
             temp = points[originalPointIndex[t]];
-//            if (contains(previousSet,temp)) {
-//              existsCount++;
-//            }
-//            if (existsCount > 1) { // It's subline
-//              break;
-//            }
-//            currentSize = add(currentSet,currentSize,temp);
+//            StdOut.println("Original index: "+originalPointIndex[t]+" Point: "+temp);
             firstLast = comparison(
               temp,
               last_p,
@@ -93,18 +91,12 @@ public class FastCollinearPoints {
             first_p = firstLast[0];
             last_p = firstLast[1];
           }
-//          k = p;
-//          if (first_p.x == last_p.x && first_p.y == last_p.y) {
-//            continue;
-//          }
-//          currentSize = add(currentSet,currentSize,first_p);
-//          currentSize = add(currentSet,currentSize,last_p);
-
-          segments[lineCount++] = new LineSegment(first_p, last_p);
-//
-//          previousSet = currentSet;
-//          previousSize = currentSize;
-
+          if (!find(first_p, last_p)) {
+            segments[lineCount++] = new LineSegment(first_p, last_p);
+//            StdOut.println("Line: " + first_p + " - " + last_p);
+            addSlopePoint(first_p, last_p);
+//            test(segments);
+          }
         }
         k = p - 1;
       }
@@ -114,24 +106,55 @@ public class FastCollinearPoints {
     segments = Arrays.copyOf(segments, lineCount);
   }
 
-  private int add(Point[] set, int size, Point val) {
-    if (!contains(set,val)) {
-      if (size >= set.length) {
-        throw new ArrayIndexOutOfBoundsException();
-      }
-      set[size++] = val;
-    }
-    return size;
-  }
-
-  private boolean contains(Point[] set, Point val) {
-    for (Point current: set) {
-      if (val.equals(current)) {
-        return true;
+  private boolean find(Point first_p, Point last_p) {
+    double slope = first_p.slopeTo(last_p);
+    for (int i = 0; i < setCount; i++) {
+      if (slopeSet[i] == slope) {
+        if (currentSet[i].compareTo(first_p) == 0 || currentSet[i].compareTo(last_p) == 0) {
+          return true;
+        }
       }
     }
     return false;
   }
+
+  private void addSlopePoint(Point first_p, Point last_p) {
+    double slope = first_p.slopeTo(last_p);
+    if (setCount == slopeSet.length) {
+      increase();
+    }
+    slopeSet[setCount] = slope;
+    currentSet[setCount] = first_p;
+    setCount++;
+    slopeSet[setCount] = slope;
+    currentSet[setCount] = last_p;
+
+  }
+
+  private void increase() {
+    slopeSet = Arrays.copyOf(slopeSet, setCount * 2);
+    currentSet = Arrays.copyOf(currentSet, slopeSet.length);
+//    setCount = currentSet.length;
+  }
+
+//  private int add(Point[] set, int size, Point val) {
+//    if (!contains(set,val)) {
+//      if (size >= set.length) {
+//        throw new ArrayIndexOutOfBoundsException();
+//      }
+//      set[size++] = val;
+//    }
+//    return size;
+//  }
+//
+//  private boolean contains(Point[] set, Point val) {
+//    for (Point current: set) {
+//      if (val.equals(current)) {
+//        return true;
+//      }
+//    }
+//    return false;
+//  }
 
   private Point[] comparison(Point a, Point b, Point c) {
     if (a.compareTo(b) == -1 && a.compareTo(c) == -1) {
@@ -168,29 +191,39 @@ public class FastCollinearPoints {
   }
 
   public LineSegment[] segments() {
-    test(segments);
+//    test(segments);
     return segments;
   }
 
-  private void test(LineSegment[] segments) {
-    LineSegment first, second;
-    for (int f = 0; f < segments.length - 2; f++) {
-      first = segments[f];
-      for (int s = f; s < segments.length-1; s++) {
-        second = segments[s];
-        if ( second.p.equals(first.p)
-          || second.p.equals(first.q)
-          || second.q.equals(first.p)
-          || second.q.equals(first.q)) {
-
-          if (first.p.slopeTo(first.q) == second.p.slopeTo(second.q)) {
-            throw new IllegalArgumentException(
-              String.format("First ( %s, %s) Second (%s, %s)",first.p,first.q,second.p,second.q));
-          }
-        }
-      }
-    }
-  }
+//  private void test(LineSegment[] segments) {
+//    LineSegment first, second;
+//    for (int f = 0; f < segments.length - 2; f++) {
+//      first = segments[f];
+//      if (first == null) continue;
+//      for (int s = f+1; s < segments.length-1; s++) {
+//        second = segments[s];
+//        if (second == null) break;
+//        if (equalz(first,second)) {
+//          if (first.p.slopeTo(first.q) == second.p.slopeTo(second.q)) {
+//            throw new IllegalArgumentException(
+//              String.format("First ( %s, %s) Second (%s, %s)",first.p,first.q,second.p,second.q));
+//          }
+//        }
+//      }
+//    }
+//  }
+//
+//  private boolean equalz(LineSegment first, LineSegment second) {
+//    if (equalzz(second.p, first.p) || equalzz(second.p, first.q) ||
+//      equalzz(second.q, first.p) || equalzz(second.q, first.q)) {
+//      return true;
+//    }
+//    return false;
+//  }
+//
+//  private boolean equalzz(Point fPoint, Point sPoint) {
+//    return (fPoint.x == sPoint.x && fPoint.y == sPoint.y);
+//  }
 
   public static void main(String[] args) {
 
@@ -223,15 +256,15 @@ public class FastCollinearPoints {
   }
 
   private void sort(double[] _input) {
-    sort(_input,0,_input.length-1);
+    sort(_input, 0, _input.length - 1);
   }
 
   private void sort(double[] _input, int lo, int hi) {
-    double mid = _input[lo + (hi-lo)/2];
+    double mid = _input[lo + (hi - lo) / 2];
     int i = lo;
     int j = hi;
-    while(i <= j) {
-      while (_input[i]< mid) {
+    while (i <= j) {
+      while (_input[i] < mid) {
         i++;
       }
       while (_input[j] > mid) {
